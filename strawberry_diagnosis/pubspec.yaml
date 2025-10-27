@@ -30,6 +30,9 @@ dependencies:
   flutter_svg: ^2.0.7
   flutter_dotenv: ^5.1.0
   uuid: ^4.3.3
+  material: ^1.0.0+2
+  camera: ^0.11.2
+  shared_preferences: ^2.3.2  # ✅ Added for storing scan guide status
 
 dev_dependencies:
   flutter_test:
@@ -44,6 +47,7 @@ flutter:
     - lib/amplifyconfiguration.dart
     - assets/images/hero_card_picture.jpg
     - assets/images/recent_scan_placeholder.jpg
+    - images/logo.jpg
     - assets/illustrations/undraw_no-data_ig65.svg
 
   fonts:

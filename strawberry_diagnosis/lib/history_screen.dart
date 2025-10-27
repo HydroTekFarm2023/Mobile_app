@@ -19,9 +19,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
       return _imageUrlCache[imageKey];
     }
     try {
-      final GetUrlResult result = await Amplify.Storage.getUrl(key: imageKey);
-      _imageUrlCache[imageKey] = result.url.toString();
-      return result.url.toString();
+      // final GetUrlResult result = await Amplify.Storage.getUrl(key: imageKey);
+     // _imageUrlCache[imageKey] = result.url.toString();
+      // return result.url.toString();
+      return null;
     } on StorageException catch (e) {
       debugPrint('Error getting download URL: ${e.message}');
       return null;
@@ -56,7 +57,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   const SizedBox(height: 16),
                   const Text(
                     'No Diagnosis History Yet!',
-                    style: TextStyle(fontSize: 18, color: Color(0xFF4C4C4C), fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Color(0xFF4C4C4C),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   const Text(
@@ -90,18 +95,28 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           FutureBuilder<String?>(
                             future: _fetchImageUrl(imageKey),
                             builder: (context, snapshot) {
-                              if (snapshot.connectionState == ConnectionState.waiting) {
+                              if (snapshot.connectionState ==
+                                  ConnectionState.waiting) {
                                 return const SizedBox(
                                   width: 80,
                                   height: 80,
-                                  child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                                  child: Center(
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
                                 );
-                              } else if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
+                              } else if (snapshot.hasError ||
+                                  !snapshot.hasData ||
+                                  snapshot.data == null) {
                                 return Container(
                                   width: 80,
                                   height: 80,
                                   color: Colors.grey[300],
-                                  child: const Icon(Icons.broken_image, color: Colors.grey),
+                                  child: const Icon(
+                                    Icons.broken_image,
+                                    color: Colors.grey,
+                                  ),
                                 );
                               } else {
                                 return ClipRRect(
@@ -116,7 +131,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                         width: 80,
                                         height: 80,
                                         color: Colors.grey[300],
-                                        child: const Icon(Icons.error_outline, color: Colors.red),
+                                        child: const Icon(
+                                          Icons.error_outline,
+                                          color: Colors.red,
+                                        ),
                                       );
                                     },
                                   ),

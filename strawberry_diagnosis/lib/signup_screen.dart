@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:amplify_flutter/amplify_flutter.dart';
+import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 import 'login_screen.dart'; // Assumes LoginPage is in main.dart
 
 class SignUpPage extends StatefulWidget {
@@ -48,21 +49,46 @@ class _SignUpPageState extends State<SignUpPage> {
 
     setState(() => _loading = true);
     try {
-      await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: email,
+      // Use SignUpOptions with attribute map using standard keys
+      final options = SignUpOptions(userAttributes: {
+        AuthUserAttributeKey.email: email,
+        if (phone.isNotEmpty) AuthUserAttributeKey.phoneNumber: phone,
+      });
+
+      final res = await Amplify.Auth.signUp(
+        username: email,
         password: password,
+        options: options,
       );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Account created successfully")),
-        );
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const LoginPage()),
-        );
+
+      if (res.isSignUpComplete) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Account created successfully')),
+          );
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const LoginPage()),
+          );
+        }
+      } else {
+        // Confirmation required (code delivery)
+        final destination = res.nextStep.codeDeliveryDetails?.destination ?? 'your email/phone';
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Confirmation required. Check $destination for the verification code.')),
+          );
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const LoginPage()),
+          );
+        }
       }
-    } on FirebaseAuthException catch (e) {
+    } on AuthException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? "Signup failed")),
+        SnackBar(content: Text(e.message)),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
       );
     } finally {
       setState(() => _loading = false);

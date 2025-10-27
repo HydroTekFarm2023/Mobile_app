@@ -1,32 +1,16 @@
+import 'dart:convert';
 import 'dart:io';
+import 'package:amplify_api/amplify_api.dart';
+import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'main.dart'; // for Diagnosis model
-import 'login_screen.dart';
+import 'package:path/path.dart' as p;
+import 'main.dart';
+import 'scan_page.dart';
+import 'profile_related_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({
-    super.key,
-    required this.status,
-    required this.diagnoses,
-    required this.selectedImage,
-    required this.amplifyConfigured,
-    required this.onPickImage,
-    required this.onUploadImage,
-    required this.onDeleteImage,
-    required this.onFetchDiagnoses,
-  });
-
-  final String status;
-  final List<Diagnosis> diagnoses;
-  final XFile? selectedImage;
-  final bool amplifyConfigured;
-
-  final VoidCallback onPickImage;
-  final VoidCallback onUploadImage;
-  final VoidCallback onDeleteImage;
-  final VoidCallback onFetchDiagnoses;
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -40,25 +24,104 @@ class _HomeScreenState extends State<HomeScreen> {
   static const Color black = Color(0xFF4C4C4C);
   static const Color black2 = Color(0xFF707070);
   static const Color greenDark = Color(0xFF28824D);
-  static const Color green1 = Color(0xFF68B789);
   static const Color green2 = Color(0xFF3CA768);
   static const Color lightGray = Color(0xFFECECEC);
   static const Color darkGrey = Color(0xFF838383);
   static const Color blue2 = Color(0xFF4BB4D6);
 
-  Future<void> _logout(BuildContext context) async {
+  String _status = 'Initializing...';
+  List<Diagnosis> _diagnoses = [];
+  XFile? _selectedImage;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!Amplify.isConfigured) {
+      setState(() => _status = 'Amplify not configured');
+    } else {
+      setState(() => _status = 'Amplify already configured');
+    }
+  }
+
+  Future<void> _uploadSelectedImage() async {
+    if (_selectedImage == null) return;
+    setState(() => _status = 'Uploading image...');
+
+    final fileKey = 'public/image_${DateTime.now().millisecondsSinceEpoch}${p.extension(_selectedImage!.path)}';
     try {
-      await FirebaseAuth.instance.signOut();
-      if (mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const LoginPage()),
-          (route) => false,
-        );
-      }
+      await Amplify.Storage.uploadFile(
+        path: StoragePath.fromString(fileKey),
+        localFile: AWSFile.fromPath(_selectedImage!.path),
+      ).result;
+
+      final fileUrl = await Amplify.Storage.getUrl(
+        path: StoragePath.fromString(fileKey),
+      ).result;
+
+      setState(() {
+        _status = 'Image uploaded: ${fileUrl.url}';
+        _selectedImage = null;
+      });
+
+      await _fetchDiagnoses();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Logout failed: $e")),
-      );
+      setState(() => _status = 'Failed to upload image: $e');
+    }
+  }
+
+  void _deleteSelectedImage() {
+    setState(() {
+      _selectedImage = null;
+      _status = 'Selection cleared';
+    });
+  }
+
+  Future<void> _fetchDiagnoses() async {
+    setState(() => _status = 'Fetching diagnoses...');
+
+    const String graphQLDocument = '''
+      query ListDiagnoses {
+        listDiagnoses {
+          items {
+            id
+            image_key
+            disease_detected
+            fungal_status
+            health_status
+            recommendations
+            timestamp
+          }
+        }
+      }
+      ''';
+
+    try {
+      final request = GraphQLRequest<String>(document: graphQLDocument);
+      final response = await Amplify.API.query(request: request).response;
+
+      if (response.data == null) {
+        setState(() {
+          _diagnoses = [];
+          _status = 'No data';
+        });
+        return;
+      }
+
+      final decoded = jsonDecode(response.data!);
+      final items = (decoded['listDiagnoses']['items'] as List)
+          .where((item) => item != null)
+          .map((item) => Diagnosis.fromJson(item as Map<String, dynamic>))
+          .toList();
+
+      setState(() {
+        _diagnoses = items;
+        _status = 'Fetched ${_diagnoses.length} diagnoses';
+      });
+    } catch (e) {
+      setState(() {
+        _status = 'Query failed: $e';
+        _diagnoses = [];
+      });
     }
   }
 
@@ -76,8 +139,13 @@ class _HomeScreenState extends State<HomeScreen> {
               Container(
                 width: 40,
                 height: 40,
-                color: lightGray,
-                child: const Icon(Icons.eco, color: black, size: 24),
+                decoration: BoxDecoration(
+                  image: const DecorationImage(
+                    image: AssetImage('images/logo.jpg'),
+                    fit: BoxFit.cover,
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
               const SizedBox(width: 12),
               const Text(
@@ -93,44 +161,64 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       body: _buildBody(context),
-      bottomNavigationBar: SafeArea(
-        child: Container(
-          height: 64,
-          margin: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: lightGray,
-            borderRadius: BorderRadius.circular(8),
+      bottomNavigationBar: Container(
+        height: 70,
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _NavItem(
-                icon: Icons.home,
-                label: "Home",
-                selected: _selectedTab == 0,
-                onTap: () => setState(() => _selectedTab = 0),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.07),
+              blurRadius: 12,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            IconButton(
+              icon: Icon(Icons.home, size: 32, color: _selectedTab == 0 ? Colors.green : Colors.grey),
+              splashRadius: 28,
+              onPressed: () {
+                if (_selectedTab != 0) setState(() => _selectedTab = 0);
+              },
+            ),
+            Container(
+              decoration: BoxDecoration(
+                color: _selectedTab == 1 ? const Color(0xFFE0F5E9) : Colors.transparent,
+                borderRadius: BorderRadius.circular(16),
               ),
-              _NavItem(
-                icon: Icons.history,
-                label: "History",
-                selected: _selectedTab == 1,
-                onTap: () => setState(() => _selectedTab = 1),
+              child: IconButton(
+                icon: Icon(Icons.apps, size: 32, color: _selectedTab == 1 ? Colors.green : Colors.grey),
+                splashRadius: 28,
+                onPressed: () {
+                  if (_selectedTab != 1) {
+                    setState(() => _selectedTab = 1);
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const ScanPage()),
+                    );
+                  }
+                },
               ),
-              _NavItem(
-                icon: Icons.person,
-                label: "Profile",
-                selected: _selectedTab == 2,
-                onTap: () => setState(() => _selectedTab = 2),
-              ),
-              _NavItem(
-                icon: Icons.help_outline,
-                label: "Help",
-                selected: _selectedTab == 3,
-                onTap: () => setState(() => _selectedTab = 3),
-              ),
-            ],
-          ),
+            ),
+            IconButton(
+              icon: Icon(Icons.person, size: 32, color: _selectedTab == 2 ? Colors.green : Colors.grey),
+              splashRadius: 28,
+              onPressed: () {
+                if (_selectedTab != 2) {
+                  setState(() => _selectedTab = 2);
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const ProfileRelatedScreen()),
+                  );
+                }
+              },
+            ),
+          ],
         ),
       ),
     );
@@ -174,12 +262,12 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 72),
           _buildHeroCard(),
-          if (widget.selectedImage != null) ...[
+          if (_selectedImage != null) ...[
             const SizedBox(height: 16),
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Image.file(
-                File(widget.selectedImage!.path),
+                File(_selectedImage!.path),
                 height: 200,
                 fit: BoxFit.cover,
               ),
@@ -189,12 +277,12 @@ class _HomeScreenState extends State<HomeScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 ElevatedButton(
-                  onPressed: widget.onUploadImage,
+                  onPressed: _uploadSelectedImage,
                   child: const Text("Upload"),
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton(
-                  onPressed: widget.onDeleteImage,
+                  onPressed: _deleteSelectedImage,
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                   child: const Text("Delete"),
                 ),
@@ -214,7 +302,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               GestureDetector(
-                onTap: widget.onFetchDiagnoses,
+                onTap: _fetchDiagnoses,
                 child: const Text(
                   "view full history",
                   style: TextStyle(
@@ -228,11 +316,11 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          if (widget.diagnoses.isEmpty)
+          if (_diagnoses.isEmpty)
             _EmptyScans()
           else
             Column(
-              children: widget.diagnoses.take(3).map((d) {
+              children: _diagnoses.take(3).map((d) {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: _ScanCard(d),
@@ -240,7 +328,7 @@ class _HomeScreenState extends State<HomeScreen> {
               }).toList(),
             ),
           const SizedBox(height: 24),
-          Text(widget.status,
+          Text(_status,
               style: const TextStyle(fontSize: 12, color: black2)),
         ],
       );
@@ -258,11 +346,11 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          if (widget.diagnoses.isEmpty)
+          if (_diagnoses.isEmpty)
             _EmptyScans()
           else
             Column(
-              children: widget.diagnoses.map((d) {
+              children: _diagnoses.map((d) {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: _ScanCard(d),
@@ -319,7 +407,12 @@ class _HomeScreenState extends State<HomeScreen> {
             width: 280,
             height: 48,
             child: ElevatedButton(
-              onPressed: widget.amplifyConfigured ? widget.onPickImage : null,
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ScanPage()),
+                );
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: green2,
                 foregroundColor: white,
@@ -341,18 +434,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildProfile(BuildContext context) {
-    return Center(
-      child: ElevatedButton.icon(
-        onPressed: () => _logout(context),
-        icon: const Icon(Icons.logout),
-        label: const Text("Logout"),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.red,
-          foregroundColor: white,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-        ),
-      ),
-    );
+    // Navigate to the ProfileRelatedScreen when this widget is built
+    Future.microtask(() {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const ProfileRelatedScreen()),
+      );
+    });
+    return const Center(child: CircularProgressIndicator());
   }
 }
 
@@ -419,8 +507,8 @@ class _ScanCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  diagnosis.disease.isNotEmpty
-                      ? diagnosis.disease
+                  diagnosis.diseaseDetected.isNotEmpty
+                      ? diagnosis.diseaseDetected
                       : "Plant Name",
                   style: const TextStyle(
                     fontSize: 16,
@@ -432,7 +520,7 @@ class _ScanCard extends StatelessWidget {
                 Row(
                   children: [
                     Text(
-                      diagnosis.createdAt ?? "Date",
+                      diagnosis.timestamp.toString() ?? "Date",
                       style: const TextStyle(fontSize: 12),
                     ),
                     const SizedBox(width: 16),
@@ -454,53 +542,6 @@ class _ScanCard extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: EdgeInsets.symmetric(
-          horizontal: selected ? 24 : 12,
-          vertical: 6,
-        ),
-        decoration: BoxDecoration(
-          color: selected ? const Color(0xFF68B789) : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 24, color: const Color(0xFF4C4C4C)),
-            if (selected) ...[
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              )
-            ]
-          ],
-        ),
       ),
     );
   }

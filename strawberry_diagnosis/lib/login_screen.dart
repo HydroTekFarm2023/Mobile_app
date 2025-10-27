@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:strawberry_diagnosis/home_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'google_sign_in.dart';
 import 'signup_screen.dart';
 import 'forgot_password_page.dart';
@@ -29,11 +31,25 @@ class _LoginPageState extends State<LoginPage> {
 
     setState(() => _loading = true);
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
+      debugPrint('User logged in: ${userCredential.user}');
+      // Store session details in shared preferences
+      final user = userCredential.user;
+      if (user != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('email', user.email ?? '');
+        await prefs.setString('phoneNumber', user.phoneNumber ?? '');
+        await prefs.setString('lastSignInTime', user.metadata.lastSignInTime?.toIso8601String() ?? '');
+      }
       // Navigate to home or next screen here if needed
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        );
+      }
     } on FirebaseAuthException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.message ?? 'Login failed')),
