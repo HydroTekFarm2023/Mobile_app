@@ -4,7 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:strawberry_diagnosis/home_screen.dart';
 import 'package:strawberry_diagnosis/login_screen_v2.dart';
 import 'package:strawberry_diagnosis/scan_page.dart';
-import 'package:strawberry_diagnosis/login_screen.dart';
 
 class ProfileRelatedScreen extends StatefulWidget {
 	const ProfileRelatedScreen({super.key});

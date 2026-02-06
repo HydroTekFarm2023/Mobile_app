@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'home_screen.dart';
 
 class LoginPageV2 extends StatefulWidget {
@@ -52,13 +53,21 @@ class _LoginPageV2State extends State<LoginPageV2> {
       );
       print('Sign in result: $res');
       if (res.isSignedIn) {
+        // Store the user token in SharedPreferences
+        final session = await Amplify.Auth.fetchAuthSession() as CognitoAuthSession;
+        if (session.isSignedIn) {
+          final token = session.userPoolTokensResult.value.accessToken.raw;
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('userToken', token);
+      }
+
         if (mounted) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (context) => const HomeScreen()),
           );
         }
       } else {
-        setState(() => _authError = 'Sign in not complete.');
+        setState(() => _authError = 'Sign-in failed. Please try again.');
       }
     } on AuthException catch (e) {
       // If the error indicates the user is already signed in, navigate to home
@@ -262,16 +271,25 @@ class _LoginPageV2State extends State<LoginPageV2> {
                       width: double.infinity,
                       child: OutlinedButton.icon(
                         onPressed: _loading ? null : _googleSignIn,
-                        icon: Image.asset('images/google_logo.png', height: 20),
+                        icon: Image.asset(
+                          'images/google_logo.png',
+                          height: 24,
+                          width: 24,
+                        ),
                         label: const Text(
-                          'Continue with Google',
-                          style: TextStyle(fontSize: 16),
+                          'Sign in with Google',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black,
+                          ),
                         ),
                         style: OutlinedButton.styleFrom(
+                          backgroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          side: const BorderSide(color: Color(0xFF3BA05B)),
+                          side: const BorderSide(color: Colors.grey),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                         ),
                       ),

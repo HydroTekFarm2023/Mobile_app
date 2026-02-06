@@ -3,16 +3,15 @@ import 'package:amplify_api/amplify_api.dart';
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_storage_s3/amplify_storage_s3.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:strawberry_diagnosis/amplifyconfiguration.dart';
 import 'package:strawberry_diagnosis/login_screen_v2.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'home_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flutter/material.dart';
-// GraphQL API
 
-Future<void> configureAmplify() async {
+final amplifyConfiguredProvider = FutureProvider<bool>((ref) async {
   try {
     await Amplify.addPlugins([
       AmplifyAuthCognito(),
@@ -20,36 +19,61 @@ Future<void> configureAmplify() async {
       AmplifyStorageS3(),
     ]);
     await Amplify.configure(amplifyconfig);
+    return true;
   } catch (e) {
     print('Failed to configure Amplify: $e');
+    return false;
   }
-}
+});
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  // Initialize Firebase (some screens still use Firebase APIs)
-  try {
-    await Firebase.initializeApp();
-  } catch (e) {
-    // If Firebase isn't configured for the current platform, log and continue.
-    print('Firebase initialization warning: $e');
-  }
-
-  // Ensure Amplify is configured before running the app
-  await configureAmplify();
-
-  runApp(const StrawberryDiagnosisApp());
+  runApp(const ProviderScope(child: StrawberryDiagnosisApp()));
 }
 
-
-class StrawberryDiagnosisApp extends StatefulWidget {
+class StrawberryDiagnosisApp extends StatelessWidget {
   const StrawberryDiagnosisApp({super.key});
 
   @override
-  State<StrawberryDiagnosisApp> createState() => _StrawberryDiagnosisAppState();
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Strawberry Diagnosis',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(primarySwatch: Colors.green),
+      home: const AmplifyInitializer(),
+    );
+  }
 }
 
-class _StrawberryDiagnosisAppState extends State<StrawberryDiagnosisApp> {
+class AmplifyInitializer extends ConsumerWidget {
+  const AmplifyInitializer({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final amplifyConfigured = ref.watch(amplifyConfiguredProvider);
+
+    return amplifyConfigured.when(
+      data: (configured) {
+        if (!configured) {
+          return const Scaffold(
+            body: Center(child: Text('Failed to configure Amplify')),
+          );
+        }
+        return const SessionChecker();
+      },
+      loading: () => const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      ),
+      error: (err, stack) => Scaffold(
+        body: Center(child: Text('Error: $err')),
+      ),
+    );
+  }
+}
+
+class SessionChecker extends StatelessWidget {
+  const SessionChecker({super.key});
+
   Future<bool> _hasSession() async {
     final prefs = await SharedPreferences.getInstance();
     final email = prefs.getString('email');
@@ -62,16 +86,11 @@ class _StrawberryDiagnosisAppState extends State<StrawberryDiagnosisApp> {
       future: _hasSession(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
-          return const MaterialApp(
-            home: Scaffold(body: Center(child: CircularProgressIndicator())),
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
           );
         }
-        return MaterialApp(
-          title: 'Strawberry Diagnosis',
-          debugShowCheckedModeBanner: false,
-          theme: ThemeData(primarySwatch: Colors.green),
-          home: snapshot.data! ? const HomeScreen() : const LoginPageV2(),
-        );
+        return snapshot.data! ? const HomeScreen() : const LoginPageV2();
       },
     );
   }

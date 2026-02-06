@@ -92,7 +92,10 @@ class _ResultPageState extends State<ResultPage> {
     ''';
 
     try {
-      final request = GraphQLRequest<String>(document: graphQLDocument);
+      final request = GraphQLRequest<String>(
+        document: graphQLDocument,
+        authorizationMode: APIAuthorizationType.userPools, // Use user token for authentication
+      );
       final response = await Amplify.API.query(request: request).response;
 
       debugPrint('GraphQL response: ${response.data}');

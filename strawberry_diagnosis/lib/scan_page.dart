@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:strawberry_diagnosis/resultpage.dart';
+import 'package:path/path.dart' as p;
+import 'package:strawberry_diagnosis/chatbot_floating_panel.dart';
 
 class ScanPage extends StatefulWidget {
   const ScanPage({super.key});
@@ -64,6 +67,7 @@ class _ScanPageState extends State<ScanPage>
     if (_cameraController != null && _cameraController!.value.isInitialized) {
       final image = await _cameraController!.takePicture();
       debugPrint("Captured Image Path: ${image.path}");
+      await _uploadSelectedImage(image.path);
       // Handle navigation or image upload here
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => ResultPage()),
@@ -138,84 +142,106 @@ class _ScanPageState extends State<ScanPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFEAF5E6),
       appBar: AppBar(
         title: const Text(
           "Scan",
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.w500),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFEAF5E6),
         centerTitle: true,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        actions: const [
-          Padding(
-            padding: EdgeInsets.only(right: 16.0),
-            child: Icon(Icons.help_outline, color: Colors.black),
-          )
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.help_outline, color: Colors.black),
+            onPressed: () {
+              // Add help functionality here
+            },
+          ),
         ],
       ),
       body: Stack(
         children: [
-          // Camera preview
-          if (_isCameraInitialized)
-            CameraPreview(_cameraController!)
-          else
-            const Center(child: CircularProgressIndicator()),
-
-          // Overlay markers
-          if (_isCameraInitialized) _buildCameraMarkers(),
-
-          // Scanning laser effect
-          if (_isCameraInitialized) _buildScanEffect(),
-
-          // Cancel button
-          Positioned(
-            bottom: 130,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: SizedBox(
-                width: 140,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.grey[200],
-                    foregroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    elevation: 0,
+          Column(
+            children: [
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.all(16.0),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2E4739),
+                    borderRadius: BorderRadius.circular(16.0),
                   ),
-                  child: const Text("Cancel"),
+                  child: Center(
+                    child: TextButton(
+                      onPressed: _captureImage,
+                      style: TextButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        shape: const CircleBorder(),
+                      ),
+                      child: const Text(
+                        "SCAN",
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
-
-          // Bottom toolbar
           Positioned(
-            left: 0,
-            right: 0,
-            bottom: 10,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 10),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _bottomIcon(Icons.photo, Colors.green, _pickFromGallery),
-                  _bottomIcon(Icons.camera_alt, Colors.black, _captureImage),
-                  _bottomIcon(Icons.refresh, Colors.green, _captureImage),
-                ],
-              ),
+            bottom: 20,
+            right: 20,
+            child: FloatingActionButton(
+              onPressed: () {
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  builder: (context) => const ChatbotFloatingPanel(),
+                );
+              },
+              backgroundColor: const Color.fromARGB(255, 19, 180, 153),
+              child: const Icon(Icons.chat, color: Colors.white),
             ),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _uploadSelectedImage(String path) async {
+
+    final fileKey = 'public/image_${DateTime.now().millisecondsSinceEpoch}${p.extension(path)}';
+    try {
+      // Fetch the user ID from Amplify Auth
+      final user = await Amplify.Auth.getCurrentUser();
+      final userId = user.userId;
+      debugPrint('Uploading image for userId: $userId');
+      // Upload the image to S3 with user metadata
+      await Amplify.Storage.uploadFile(
+        path: StoragePath.fromString(fileKey),
+        localFile: AWSFile.fromPath(path),
+        options: StorageUploadFileOptions(
+          metadata: {
+            'userId': userId, // Pass userId as metadata
+          },
+        ),
+      ).result;
+
+      final fileUrl = await Amplify.Storage.getUrl(
+        path: StoragePath.fromString(fileKey),
+      ).result;
+      debugPrint('File uploaded successfully. URL: ${fileUrl.url}');
+    } catch (e) {
+      debugPrint('Failed to upload image: $e');
+    }
   }
 }
 

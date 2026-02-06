@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:amplify_api/amplify_api.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -49,9 +48,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final fileKey = 'public/image_${DateTime.now().millisecondsSinceEpoch}${p.extension(_selectedImage!.path)}';
     try {
+      // Fetch the user ID from Amplify Auth
+      final user = await Amplify.Auth.getCurrentUser();
+      final userId = user.userId;
+
+      // Upload the image to S3 with user metadata
       await Amplify.Storage.uploadFile(
         path: StoragePath.fromString(fileKey),
         localFile: AWSFile.fromPath(_selectedImage!.path),
+        options: StorageUploadFileOptions(
+          metadata: {
+            'userId': userId, // Pass userId as metadata
+          },
+        ),
       ).result;
 
       final fileUrl = await Amplify.Storage.getUrl(
@@ -96,7 +105,10 @@ class _HomeScreenState extends State<HomeScreen> {
       ''';
 
     try {
-      final request = GraphQLRequest<String>(document: graphQLDocument);
+      final request = GraphQLRequest<String>(
+        document: graphQLDocument,
+        authorizationMode: APIAuthorizationType.userPools, // Use user token for authentication
+      );
       final response = await Amplify.API.query(request: request).response;
 
       if (response.data == null) {
@@ -520,7 +532,7 @@ class _ScanCard extends StatelessWidget {
                 Row(
                   children: [
                     Text(
-                      diagnosis.timestamp.toString() ?? "Date",
+                      diagnosis.timestamp.toString(),
                       style: const TextStyle(fontSize: 12),
                     ),
                     const SizedBox(width: 16),
