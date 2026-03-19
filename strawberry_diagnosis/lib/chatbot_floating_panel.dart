@@ -25,7 +25,8 @@ class _ChatbotFloatingPanelState extends State<ChatbotFloatingPanel> {
     });
 
     try {
-      const String endpoint = 'https://your-amplify-api-endpoint.amazonaws.com/chat';
+      const String endpoint =
+          'https://your-amplify-api-endpoint.amazonaws.com/chat';
 
       final response = await http.post(
         Uri.parse(endpoint),
@@ -33,15 +34,15 @@ class _ChatbotFloatingPanelState extends State<ChatbotFloatingPanel> {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer your-auth-token',
         },
-        body: jsonEncode({
-          'message': message,
-        }),
+        body: jsonEncode({'message': message}),
       );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final data = jsonDecode(response.body); // Parse the response body
         setState(() {
-          _messages.add({'bot': data['response']});
+          _messages.add({
+            'bot': data['response'] ?? 'No response from server.',
+          });
         });
       } else {
         setState(() {
@@ -50,6 +51,7 @@ class _ChatbotFloatingPanelState extends State<ChatbotFloatingPanel> {
       }
     } catch (e) {
       setState(() {
+        debugPrint("Error sending message: $e");
         _messages.add({'bot': 'Error: $e'});
       });
     } finally {
@@ -60,13 +62,71 @@ class _ChatbotFloatingPanelState extends State<ChatbotFloatingPanel> {
   }
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(); // Allow picking any file type
+    final result = await FilePicker.platform
+        .pickFiles(); // Allow picking any file type
     if (result != null && result.files.isNotEmpty) {
       final file = result.files.first;
       setState(() {
         _messages.add({'user': 'Sent a file: ${file.name}'});
       });
       // Handle file upload or processing here
+    }
+  }
+
+  Future<void> _sendMessageToBackend(String message) async {
+
+    setState(() {
+      _messages.add({'user': message});
+      _isLoading = true;
+    });
+
+    try {
+      const String endpoint =
+          'https://m5kkr1om14.execute-api.us-east-1.amazonaws.com/prod/grok-mcp-server-e';
+
+      final response = await http
+          .post(
+            Uri.parse(endpoint),
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              "jsonrpc": "2.0",
+              "id": 1,
+              "method": "tools/call",
+              "params": {
+                "name": "analyze_user_prompt",
+                "arguments": {"user_prompt": message}
+              }
+            }),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        setState(() {
+          if (responseData['result']["status"] == "rejected") {
+            _messages.add({'bot': responseData['result']['message']});
+            return;
+          }
+          _messages.add({
+            'bot': responseData['result']['answer'] ?? 'No response from server.',
+          });
+        });
+      } else {
+        setState(() {
+          _messages.add({'bot': 'Error: Unable to connect to the server.'});
+        });
+      }
+    } catch (e) {
+      setState(() {
+        debugPrint("Error sending message to backend: $e");
+        _messages.add({'bot': 'Error: $e'});
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -89,10 +149,14 @@ class _ChatbotFloatingPanelState extends State<ChatbotFloatingPanel> {
                 final isUser = message.containsKey('user');
 
                 return Align(
-                  alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+                  alignment: isUser
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
                   child: Container(
                     margin: const EdgeInsets.symmetric(
-                        vertical: 8.0, horizontal: 16.0),
+                      vertical: 8.0,
+                      horizontal: 16.0,
+                    ),
                     padding: const EdgeInsets.all(12.0),
                     decoration: BoxDecoration(
                       color: isUser
@@ -102,10 +166,7 @@ class _ChatbotFloatingPanelState extends State<ChatbotFloatingPanel> {
                     ),
                     child: Text(
                       isUser ? message['user']! : message['bot']!,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.white,
-                      ),
+                      style: const TextStyle(fontSize: 14, color: Colors.white),
                     ),
                   ),
                 );
@@ -139,8 +200,12 @@ class _ChatbotFloatingPanelState extends State<ChatbotFloatingPanel> {
                 ),
                 const SizedBox(width: 8.0),
                 IconButton(
-                  icon: const Icon(Icons.attach_file, color: Colors.black), // File attachment icon
-                  onPressed: _pickFile, // Updated to use FilePicker for all file types
+                  icon: const Icon(
+                    Icons.attach_file,
+                    color: Colors.black,
+                  ), // File attachment icon
+                  onPressed:
+                      _pickFile, // Updated to use FilePicker for all file types
                 ),
                 IconButton(
                   icon: const Icon(Icons.send, color: Colors.black),
@@ -148,7 +213,7 @@ class _ChatbotFloatingPanelState extends State<ChatbotFloatingPanel> {
                     final message = _messageController.text.trim();
                     if (message.isNotEmpty) {
                       _messageController.clear();
-                      _sendMessage(message);
+                      _sendMessageToBackend(message); // Send message to backend
                     }
                   },
                 ),

@@ -10,6 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.6
+  flutter_riverpod: ^3.0.3
 
   # Amplify packages
   amplify_flutter: ^2.6.1
@@ -45,6 +46,7 @@ flutter:
   assets:
     - .env
     - lib/amplifyconfiguration.dart
+    - images/google.png
     - assets/images/hero_card_picture.jpg
     - assets/images/recent_scan_placeholder.jpg
     - images/logo.jpg

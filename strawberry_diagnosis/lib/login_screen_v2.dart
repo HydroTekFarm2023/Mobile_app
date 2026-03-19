@@ -10,7 +10,7 @@ class LoginPageV2 extends StatefulWidget {
   @override
   State<LoginPageV2> createState() => _LoginPageV2State();
 }
-
+ 
 class _LoginPageV2State extends State<LoginPageV2> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -23,6 +23,7 @@ class _LoginPageV2State extends State<LoginPageV2> {
     setState(() {
       _emailError = _emailController.text.isEmpty
           ? 'Please enter your email.'
+  
           : null;
       _passwordError = _passwordController.text.isEmpty
           ? 'Please enter your password.'
@@ -272,7 +273,7 @@ class _LoginPageV2State extends State<LoginPageV2> {
                       child: OutlinedButton.icon(
                         onPressed: _loading ? null : _googleSignIn,
                         icon: Image.asset(
-                          'images/google_logo.png',
+                          'images/google.png',
                           height: 24,
                           width: 24,
                         ),
