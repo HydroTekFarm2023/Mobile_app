@@ -8,8 +8,10 @@ workflows:
       groups:
         - amplify_secrets
     scripts:
-      - name: Write Amplify config
-        script: echo "$AMPLIFY_CONFIG_DART" > lib/amplifyconfiguration.dart
+      - name: Write secret config files
+        script: |
+          echo "$AMPLIFY_CONFIG_DART" > lib/amplifyconfiguration.dart
+          echo "$ENV_FILE_CONTENT" > .env
       - name: Get Flutter packages
         script: flutter pub get
       - name: Build Android APK (debug)
@@ -26,8 +28,10 @@ workflows:
       groups:
         - amplify_secrets
     scripts:
-      - name: Write Amplify config
-        script: echo "$AMPLIFY_CONFIG_DART" > lib/amplifyconfiguration.dart
+      - name: Write secret config files
+        script: |
+          echo "$AMPLIFY_CONFIG_DART" > lib/amplifyconfiguration.dart
+          echo "$ENV_FILE_CONTENT" > .env
       - name: Get Flutter packages
         script: flutter pub get
       - name: Build iOS (simulator, no signing)
