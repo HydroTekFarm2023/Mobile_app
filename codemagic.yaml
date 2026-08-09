@@ -5,7 +5,11 @@ workflows:
     instance_type: mac_mini_m2
     environment:
       flutter: stable
+      groups:
+        - amplify_secrets
     scripts:
+      - name: Write Amplify config
+        script: echo "$AMPLIFY_CONFIG_DART" > lib/amplifyconfiguration.dart
       - name: Get Flutter packages
         script: flutter pub get
       - name: Build Android APK (debug)
@@ -19,7 +23,11 @@ workflows:
     instance_type: mac_mini_m2
     environment:
       flutter: stable
+      groups:
+        - amplify_secrets
     scripts:
+      - name: Write Amplify config
+        script: echo "$AMPLIFY_CONFIG_DART" > lib/amplifyconfiguration.dart
       - name: Get Flutter packages
         script: flutter pub get
       - name: Build iOS (simulator, no signing)
