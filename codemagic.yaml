@@ -20,7 +20,7 @@ workflows:
       - build/**/outputs/**/*.apk
 
   ios-build:
-    name: iOS Build (Simulator)
+    name: iOS Build
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
@@ -35,6 +35,6 @@ workflows:
       - name: Get Flutter packages
         script: flutter pub get
       - name: Build iOS (simulator, no signing)
-        script: flutter build ios --debug --no-codesign --simulator
+        script: flutter build ios --debug --no-codesign
     artifacts:
       - build/ios/iphonesimulator/*.app
